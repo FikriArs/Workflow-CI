@@ -1,37 +1,72 @@
-name: MLProject Run
+name: Advanced ML Workflow
 
 on:
   push:
     paths:
       - 'MLProject/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:
-  run-mlflow:
+  build-and-deploy:
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash -el {0}
 
     steps:
-    - name: Checkout repository
+    - name: Checkout
       uses: actions/checkout@v3
 
-    - name: Setup Miniconda
+    - name: Set up Python 3.12.7
       uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
         python-version: '3.12.7'
 
-    - name: Install MLflow
-      run: pip install mlflow==2.19.0
+    - name: Check Env
+      run: python --version && conda --version
 
-    - name: Start MLflow Server
-      run: |
-        mlflow server --host 127.0.0.1 --port 5000 &
-        sleep 5
-        
-    - name: Run MLProject
+    - name: Install dependencies
+      run: pip install mlflow==2.19.0 pandas scikit-learn
+
+    - name: Run mlflow project
       run: |
         cd MLProject
+        mlflow server --host 127.0.0.1 --port 5000 &
+        sleep 5
         mlflow run .
+
+    - name: Get latest MLflow run_id
+      id: get_run_id
+      run: |
+        cd MLProject
+        RUN_ID=$(ls mlruns/0 | grep -E '^[a-z0-9]+$' | head -n 1)
+        echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+        echo "Found Run ID: $RUN_ID"
+
+    - name: Install Python dependencies
+      run: echo "Dependencies installed in previous steps."
+
+    - name: Upload to GitHub
+      uses: actions/upload-artifact@v3
+      with:
+        name: mlflow-artifacts
+        path: MLProject/mlruns/
+
+    - name: Build Docker Model
+      run: |
+        cd MLProject
+        mlflow models build-docker -m "runs:/${{ env.RUN_ID }}/model" -n league-predictor-model
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Tag Docker Image
+      run: docker tag league-predictor-model:latest ${{ secrets.DOCKER_USERNAME }}/league-predictor-model:latest
+
+    - name: Push Docker Image
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/league-predictor-model:latest
