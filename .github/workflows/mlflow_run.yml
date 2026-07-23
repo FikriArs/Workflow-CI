@@ -1,0 +1,37 @@
+name: MLProject Run
+
+on:
+  push:
+    paths:
+      - 'MLProject/**'
+  workflow_dispatch:
+
+jobs:
+  run-mlflow:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: '3.12.7'
+
+    - name: Install MLflow
+      run: pip install mlflow==2.19.0
+
+    - name: Start MLflow Server
+      run: |
+        mlflow server --host 127.0.0.1 --port 5000 &
+        sleep 5
+        
+    - name: Run MLProject
+      run: |
+        cd MLProject
+        mlflow run .
