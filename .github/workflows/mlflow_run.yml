@@ -33,6 +33,7 @@ jobs:
     - name: Run mlflow project
       run: |
         cd MLProject
+        export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
         mlflow server --host 127.0.0.1 --port 5000 &
         sleep 5
         mlflow run .
@@ -57,6 +58,7 @@ jobs:
     - name: Build Docker Model
       run: |
         cd MLProject
+        export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
         mlflow models build-docker -m "runs:/${{ env.RUN_ID }}/model" -n league-predictor-model
 
     - name: Log in to Docker Hub
